@@ -9,7 +9,6 @@
 #kdiff3 ignore
 target/
 out/
-test/
 
 #eclipse ignore
 .settings/
