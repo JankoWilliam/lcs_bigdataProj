@@ -2,32 +2,32 @@ package cn.yintech.flink;
 
 
 import com.alibaba.fastjson.JSON;
-import com.sun.deploy.util.ParameterUtil;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.datastream.WindowedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.triggers.ContinuousProcessingTimeTrigger;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Properties;
 
+import org.apache.flink.util.Collector;
+
 public class LiveVisitCountFlink {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.ProcessingTime);
         env.enableCheckpointing(60*1000, CheckpointingMode.EXACTLY_ONCE);
@@ -61,12 +61,30 @@ public class LiveVisitCountFlink {
                 })
                 .name("eventStream").uid("eventStream01");
 
-        final WindowedStream<SensorsEvent, Tuple, TimeWindow> dayWindowStream = eventStream.keyBy("properties.v1_message_id")
+        final WindowedStream<SensorsEvent, Tuple, TimeWindow> eventWindowStream = eventStream
+                .keyBy("properties.v1_message_id")
                 .window(TumblingProcessingTimeWindows.of(Time.days(1), Time.hours(-8)))
                 .trigger(ContinuousProcessingTimeTrigger.of(Time.seconds(5)));
 
 //        dayWindowStream.aggregate()
 
+        final SingleOutputStreamOperator<Tuple2<String, String>> eventStrea2 = eventWindowStream.apply(new WindowFunction<SensorsEvent, Tuple2<String, String>, Tuple, TimeWindow>() {
+            @Override
+            public void apply(Tuple tuple, TimeWindow timeWindow, Iterable<SensorsEvent> iterable, Collector<Tuple2<String, String>> collector) throws Exception {
+                String key = "";
+                String value = "";
+                for (SensorsEvent event : iterable) {
+                    final String v = event.getProperties().getUserID() + "|";
+                    value += v;
+                }
+                collector.collect(new Tuple2<>(key, value));
+            }
+        });
+
+        eventStrea2.print("aaa");
+
+
+        env.execute("LiveVisitCountFlink");
 
     }
     public static final class MyAggregateFunc

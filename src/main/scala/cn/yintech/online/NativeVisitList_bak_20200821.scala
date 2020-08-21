@@ -5,7 +5,6 @@ import java.text.SimpleDateFormat
 import cn.yintech.redisUtil.RedisClient
 import net.minidev.json.JSONObject
 import net.minidev.json.parser.JSONParser
-import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.storage.StorageLevel
@@ -22,7 +21,7 @@ import scala.language.postfixOps
  * 理财师埋点日志访问记录、统计引流到线上系统
  *      v20200402:理财师_TD公众号&理财师埋点日志访问记录、统计引流到线上系统,任务合并
  */
-object NativeVisitList {
+object NativeVisitList_bak_20200821 {
 
     def main(args: Array[String]): Unit = {
       // 1.创建SparkConf对象
@@ -62,34 +61,13 @@ object NativeVisitList {
         "enable.auto.commit" -> (false: java.lang.Boolean)
       )
       // 4.2.定义topic
-      val topics = "sc_md"
+      val topics = Set("sc_md")
 
-      // kafka流
-      val dstream =
-        // 指定起始消费者偏移消费数据，主方法传参3个分区的三个数字，依次为0,1,2分区
-        if (args != null && args.length == 3 ) {
-        val partition0: TopicPartition = new TopicPartition(topics, 0)
-        val partition1: TopicPartition = new TopicPartition(topics, 1)
-        val partition2: TopicPartition = new TopicPartition(topics, 2)
-        var fromOffsets = Map[TopicPartition, Long]()
-        fromOffsets += (partition0 -> args(0).toLong)
-        fromOffsets += (partition1 -> args(1).toLong)
-        fromOffsets += (partition2 -> args(2).toLong)
-
-        KafkaUtils.createDirectStream[String, String](
+      val dstream = KafkaUtils.createDirectStream[String, String](
         ssc,
         PreferConsistent,
-        Subscribe[String, String](Set(topics), kafkaParams,fromOffsets))
-
-        // 默认消费者偏移消费数据
-      } else {
-
-        KafkaUtils.createDirectStream[String, String](
-          ssc,
-          PreferConsistent,
-          Subscribe[String, String](Set(topics), kafkaParams))
-      }
-      //        .persist(StorageLevel.MEMORY_AND_DISK)
+        Subscribe[String, String](topics, kafkaParams))
+//        .persist(StorageLevel.MEMORY_AND_DISK)
       /**
        ***************************************************************************
        * 理财师埋点处理流-----------------------------------------------------START--
@@ -316,7 +294,6 @@ object NativeVisitList {
 //        })
 
       // 文章阅读数统计
-      import scala.collection.JavaConverters._
       valueTD.filter(v =>  v._2 == "金股天下_文章访问")
         .map(row => (row._6,(row._1,row._7)))
         .updateStateByKey[(mutable.Map[String,String],Long,String)](updateFuncTD) //类型为key=文章id,value=(Map(用户id,时间),阅读数,最新时间)

@@ -33,7 +33,7 @@ public class SensorsEvent implements Serializable {
         this.properties = properties;
     }
 
-    private class Properties implements Serializable{
+    class Properties implements Serializable{
 
         private static final long serialVersionUID = -2075636029716471758L;
 
