@@ -22,7 +22,7 @@ import scala.language.postfixOps
  * 理财师埋点日志访问记录、统计引流到线上系统
  *      v20200402:理财师_TD公众号&理财师埋点日志访问记录、统计引流到线上系统,任务合并
  */
-object NativeVisitList {
+object NativeVisitList_bak_20200824 {
 
     def main(args: Array[String]): Unit = {
       // 1.创建SparkConf对象
@@ -316,7 +316,6 @@ object NativeVisitList {
 //        })
 
       // 文章阅读数统计
-      import scala.collection.JavaConverters._
       valueTD.filter(v =>  v._2 == "金股天下_文章访问")
         .map(row => (row._6,(row._1,row._7)))
         .updateStateByKey[(mutable.Map[String,String],Long,String)](updateFuncTD) //类型为key=文章id,value=(Map(用户id,时间),阅读数,最新时间)
@@ -496,6 +495,247 @@ object NativeVisitList {
 
       /**
        ***************************************************************************
+       *  保险数据                      ------------------------------------Start--
+       ***************************************************************************
+       */
+      /**
+       * const { title, author_name: name, article_id: id, c_time: time } = this.article
+       * const { openid, unionid } = this.storeWxInfo
+       * this.$sa.visit({
+       * v1_element_content: '永盈宝_文章访问',
+       * wx_openid: openid || '',
+       * wx_uid: unionid || '',
+       * v1_message_title: title,
+       * v1_message_id: id,
+       * v1_lcs_name: name,
+       * v1_source: this.from || '',
+       * v1_custom_params: time
+       * })
+       * },
+       **/
+      // 保险BXVisit和BXClick事件总数据
+      val bxData = dstream
+        .map(record => {
+          val dataMap = jsonParse(record.value())
+          (dataMap.getOrElse("event", ""),dataMap.getOrElse("properties", ""),dataMap.getOrElse("time", ""))
+        })
+        .filter(v => v._1 == "BXVisit" || v._1 == "BXClick")
+        .map(v => {
+          val properties = jsonParse(v._2)
+          (
+            properties.getOrElse("v1_element_content",""),   //1
+            properties.getOrElse("v1_message_title",""),     //2
+            properties.getOrElse("v1_message_id",""),        //3
+            properties.getOrElse("v1_custom_params",""),     //4
+            properties.getOrElse("wx_openid",""),            //5
+            properties.getOrElse("wx_uid",""),               //6
+            properties.getOrElse("v1_lcs_name",""),           //7
+            properties.getOrElse("v1_source",""),             //8
+            properties.getOrElse("v1_lcs_id",""),             //9
+            properties.getOrElse("v1_invest_id",""),          //10
+            properties.getOrElse("v1_element_title",""),       //11
+            properties.getOrElse("v1_element_type",""),      //12
+            properties.getOrElse("v1_is_push",""),           //13
+            properties.getOrElse("v1_push_type",""),         //14
+            properties.getOrElse("v1_is_live",""),            //15
+            properties.getOrElse("event",v._1),               //16
+            properties.getOrElse("v1_push_title",""),         //17
+            properties.getOrElse("v1_page_url",""),            //18
+            properties.getOrElse("v1_page_title",""),           //19
+            properties.getOrElse("v1_tg_name",""),             //20
+            properties.getOrElse("v1_tg_id",""),              //21
+            properties.getOrElse("v1_wx_username","")       //22
+          )
+        }).persist(StorageLevel.MEMORY_AND_DISK)
+
+
+      // 启见保_文章/视频访问等
+      // 定义v1_element_content内容
+      val contentsBX= List(
+        "启见保_文章访问",
+        "启见保_视频页面往期点击",
+        "启见保_视频页面访问"
+      )
+      val contentsBXBro: Broadcast[List[String]] = ssc.sparkContext.broadcast(contentsBX)
+      bxData.filter(v => contentsBXBro.value.contains(v._1) )
+        .foreachRDD(lines => {
+          //存储到redis
+          lines.foreachPartition( rdd  => {
+            val list = rdd.toList
+            if (list.nonEmpty){
+              val jedis = RedisClient.pool.getResource
+              list.foreach(v => {
+                val jsonObj = new JSONObject
+                val `type` = v._1 match {
+                  case "启见保_文章访问" => "view_article"
+                  case "启见保_视频页面往期点击" => "video_past_click"
+                  case "启见保_视频页面访问" => "video_visit"
+                }
+                jsonObj.put("type",`type`)
+                jsonObj.put("v1_element_content",v._1)
+                jsonObj.put("v1_message_title",v._2)
+                jsonObj.put("v1_message_id",v._3)
+                jsonObj.put("v1_custom_params",v._4)
+                jsonObj.put("wx_openid",v._5)
+                jsonObj.put("wx_uid",v._6)
+                jsonObj.put("v1_lcs_name",v._7)
+                jsonObj.put("v1_source",v._8)
+                jsonObj.put("v1_lcs_id",v._9)
+                jsonObj.put("v1_invest_id",v._10)
+                jsonObj.put("v1_is_live",v._15)
+                jsonObj.put("v1_page_url",v._18)
+                jedis.rpush("td:bx:behevior:list",jsonObj.toJSONString)
+                // 当测试环境使用
+                jedis.rpush("td:bx:behevior:list:test",jsonObj.toJSONString)
+              })
+              jedis.close()
+            }
+          })
+        })
+      // BXVisit v1_is_push: isPush事件
+      bxData.filter(v => v._16 == "BXVisit" && v._13 == "1")
+        .foreachRDD(lines => {
+          //存储到redis
+          lines.foreachPartition( rdd  => {
+            val list = rdd.toList
+            if (list.nonEmpty){
+              val jedis = RedisClient.pool.getResource
+              list.foreach(v => {
+                val jsonObj = new JSONObject
+                jsonObj.put("type","isPush")
+                jsonObj.put("v1_element_content",v._1)
+                jsonObj.put("v1_message_title",v._2)
+                jsonObj.put("v1_message_id",v._3)
+                jsonObj.put("v1_custom_params",v._4)
+                jsonObj.put("wx_openid",v._5)
+                jsonObj.put("wx_uid",v._6)
+                jsonObj.put("v1_lcs_name",v._7)
+                jsonObj.put("v1_source",v._8)
+                jsonObj.put("v1_lcs_id",v._9)
+                jsonObj.put("v1_invest_id",v._10)
+                jsonObj.put("v1_element_title",v._11)
+                jsonObj.put("v1_element_type",v._12)
+                jsonObj.put("v1_is_push",v._13)
+                jsonObj.put("v1_push_type",v._14)
+                jsonObj.put("v1_push_title",v._17)
+                jsonObj.put("v1_page_url",v._18)
+                jedis.rpush("td:bx:behevior:list",jsonObj.toJSONString)
+                // 当测试环境使用
+                jedis.rpush("td:bx:behevior:list:test",jsonObj.toJSONString)
+              })
+              jedis.close()
+            }
+          })
+        })
+      // 启见保_营销活动事件
+      bxData.filter(v => v._12 == "启见保_营销活动")
+        .foreachRDD(lines => {
+          //存储到redis
+          lines.foreachPartition( rdd  => {
+            val list = rdd.toList
+            if (list.nonEmpty){
+              val jedis = RedisClient.pool.getResource
+              list.foreach(v => {
+                val jsonObj = new JSONObject
+                val `type` = v._16 match {
+                  case "BXVisit" => "activity_visit"
+                  case "BXClick" => "activity_click"
+                }
+                jsonObj.put("type",`type`)
+                jsonObj.put("v1_element_content",v._1)
+                jsonObj.put("v1_message_title",v._2)
+                jsonObj.put("v1_message_id",v._3)
+                jsonObj.put("v1_custom_params",v._4)
+                jsonObj.put("wx_openid",v._5)
+                jsonObj.put("wx_uid",v._6)
+                jsonObj.put("v1_lcs_name",v._7)
+                jsonObj.put("v1_source",v._8)
+                jsonObj.put("v1_lcs_id",v._9)
+                jsonObj.put("v1_invest_id",v._10)
+                jsonObj.put("v1_element_title",v._11)
+                jsonObj.put("v1_element_type",v._12)
+                jsonObj.put("v1_page_url",v._18)
+                jedis.rpush("td:bx:behevior:list",jsonObj.toJSONString)
+                // 当测试环境使用
+                jedis.rpush("td:bx:behevior:list:test",jsonObj.toJSONString)
+              })
+              jedis.close()
+            }
+          })
+        })
+
+      // 展业助手_计划书&视频直播H5访问
+      bxData.filter(v => v._1 == "展业助手_计划书详情页访问" || v._1 == "展业助手_计划书详情页_点击投保" || v._1 == "视频直播H5访问")
+        .foreachRDD(lines => {
+          //存储到redis
+          lines.foreachPartition( rdd  => {
+            val list = rdd.toList
+            if (list.nonEmpty){
+              val jedis = RedisClient.pool.getResource
+              list.foreach(v => {
+                val jsonObj = new JSONObject
+                val `type` = v._1 match {
+                  case "展业助手_计划书详情页访问" => "planbook_visit"
+                  case "展业助手_计划书详情页_点击投保" => "planbook_click"
+                  case "视频直播H5访问" => "live_h5_visit"
+                }
+                jsonObj.put("type",`type`)
+                jsonObj.put("v1_element_content",v._1)
+                jsonObj.put("v1_page_title",v._19)
+                jsonObj.put("v1_tg_name",v._20)
+                jsonObj.put("v1_tg_id",v._21)
+                jsonObj.put("wx_openid",v._5)
+                jsonObj.put("wx_uid",v._6)
+                jsonObj.put("v1_lcs_name",v._7)
+                jsonObj.put("v1_lcs_id",v._9)
+                jsonObj.put("v1_wx_username",v._22)
+                jsonObj.put("v1_page_url",v._18)
+                jsonObj.put("v1_message_title",v._2)
+                jedis.rpush("td:bx:behevior:list",jsonObj.toJSONString)
+                // 当测试环境使用
+                jedis.rpush("td:bx:behevior:list:test",jsonObj.toJSONString)
+              })
+              jedis.close()
+            }
+          })
+        })
+
+      // 启见保_保障测评页面访问
+      bxData.filter(v => v._1 == "启见保_保障测评页面访问")
+        .foreachRDD(lines => {
+          //存储到redis
+          lines.foreachPartition( rdd  => {
+            val list = rdd.toList
+            if (list.nonEmpty){
+              val jedis = RedisClient.pool.getResource
+              list.foreach(v => {
+                val jsonObj = new JSONObject
+                val `type` = v._1 match {
+                  case "启见保_保障测评页面访问" => "se_visit"
+                }
+                jsonObj.put("type",`type`)
+                jsonObj.put("v1_element_content",v._1)
+                jsonObj.put("v1_page_title",v._19)
+                jsonObj.put("wx_openid",v._5)
+                jsonObj.put("wx_uid",v._6)
+                jsonObj.put("v1_custom_params",v._4)
+                jsonObj.put("v1_page_url",v._18)
+                jedis.rpush("td:bx:behevior:list",jsonObj.toJSONString)
+                // 当测试环境使用
+                jedis.rpush("td:bx:behevior:list:test",jsonObj.toJSONString)
+              })
+              jedis.close()
+            }
+          })
+        })
+
+      /**
+       ***************************************************************************
+       * 保险数据                      ------------------------------------End--
+       ***************************************************************************
+       */
+      /**
+       ***************************************************************************
        * 推送启动app统计--------------------------------------------Start--
        ***************************************************************************
        */
@@ -652,36 +892,5 @@ object NativeVisitList {
     }
     map
   }
-
-  case class BxData(
-                     v1_element_content: String,
-                     v1_message_title: String,
-                     v1_message_id: String,
-                     v1_custom_params: String,
-                     wx_openid: String,
-                     wx_uid: String,
-                     v1_lcs_name: String,
-                     v1_source: String,
-                     v1_lcs_id: String,
-                     v1_invest_id: String,
-                     v1_element_title: String,
-                     v1_element_type: String,
-                     v1_is_push: String,
-                     v1_push_type: String,
-                     v1_is_live: String,
-                     event: String,
-                     v1_push_title: String,
-                     v1_page_url: String,
-                     v1_page_title: String,
-                     v1_tg_name: String,
-                     v1_tg_id: String,
-                     v1_wx_username: String,
-                     v1_tg_open_id : String,
-                     sc_comments : String,
-                     sport_name : String,
-                     v1_custom_params2 : String,
-                     infor_list : String,
-                     dt_commit_time : String
-  )
 
 }

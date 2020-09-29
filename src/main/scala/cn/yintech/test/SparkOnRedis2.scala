@@ -25,11 +25,11 @@ object SparkOnRedis2 {
     // 阿里redis中用户关注TD理财师数量
     val liveData  = spark.sparkContext.fromRedisHash("lcs:live:visit:count:circle")
       .foreachPartition(rdd => {
+        val jedis = RedisClientNew.pool.getResource
         rdd.foreach( v => {
-          val jedis = RedisClientNew.pool.getResource
-          jedis.hset("lcs:live:visit:count:circle", v._1 , v._2)
-          jedis.close()
+//          jedis.hset("lcs:live:visit:count:circle", v._1 , v._2)
         })
+        jedis.close()
       })
 
 //    spark.sparkContext.toRedisHASH()
