@@ -1,11 +1,13 @@
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date, Iterator, Set}
 
+import cn.yintech.eventLog.HistoryEventLogEtl.jsonParse
 import cn.yintech.flink.SensorsEvent
 import cn.yintech.redisUtil.RedisClient
 import net.minidev.json.JSONObject
 import net.minidev.json.parser.JSONParser
 import org.apache.flink.api.java.utils.ParameterTool
+import shapeless.ops.nat.Max
 
 import scala.collection.mutable
 import scala.util.Random
@@ -26,60 +28,62 @@ object Test {
 //    val tool: ParameterTool = ParameterTool.fromPropertiesFile( Thread.currentThread().getContextClassLoader.getResource("kafka.properties").getPath)
 //    println(tool.get("group.id"))
 
-//    val sdf =  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+    val sdf =  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+
+//    println(sdf.format(new Date(1605680275280L)))
 ////
-//    println(sdf.parse("2020-04-15 09:28:57.942").getTime)
+    println(sdf.parse("2021-01-01 20:54:08.723").getTime)
 //    println(new SimpleDateFormat("yyyy-MM-dd").format(0))
 //    sdf2.parse("2020-03-1")
 //        val sdf2 =  new SimpleDateFormat("yyyy-MM-dd")
 //        println(sdf2.format(new Date()))
-      val jsonParser = new JSONParser()
-    val jsonStr =
-      """
-        |{
-        |		"PlatformType": "iOS",
-        |		"$os_version": "13.3",
-        |		"$url_path": "/FE_vue_wap/trend.html",
-        |		"$carrier": "中国联通",
-        |		"$latest_referrer": "",
-        |		"$utm_campaign": "AppStore",
-        |		"$latest_referrer_host": "",
-        |		"$device_id": "1533FD43-DDB9-407D-9874-5394639D0E82",
-        |		"$lib": "js",
-        |		"$manufacturer": "Apple",
-        |		"planner_number": "1",
-        |		"$os": "iOS",
-        |		"$referrer": "",
-        |		"$model": "iPhone11,8",
-        |		"$url": "http://niu.sinalicaishi.com.cn/FE_vue_wap/trend.html#/trend?symbol=sz300750",
-        |		"platForm": "h5",
-        |		"$latest_search_keyword": "未取到值_直接打开",
-        |		"deviceId": "1533FD43-DDB9-407D-9874-5394639D0E82",
-        |		"$lib_version": "1.14.6",
-        |		"$screen_width": 375,
-        |		"$title": "多空趋势",
-        |		"$screen_height": 812,
-        |		"$is_first_time": false,
-        |		"$network_type": "WIFI",
-        |		"userID": "27250486",
-        |		"$wifi": true,
-        |		"$referrer_host": "",
-        |		"$app_version": "4.3.16",
-        |		"stock_number": "21",
-        |		"$latest_traffic_source_type": "直接流量",
-        |		"PushStatus": true,
-        |		"$utm_source": "AppStore",
-        |		"$is_first_day": true,
-        |		"$ip": "60.222.83.182",
-        |		"$is_login_id": false,
-        |		"$city": "运城",
-        |		"$province": "山西",
-        |		"$country": "中国"
-        |	}
-        |""".stripMargin
-    val value = jsonParser.parse(jsonStr).asInstanceOf[JSONObject]
-    value.put("event","BXClick")
-    println(value.toJSONString())
+//      val jsonParser = new JSONParser()
+//    val jsonStr =
+//      """
+//        |{
+//        |		"PlatformType": "iOS",
+//        |		"$os_version": "13.3",
+//        |		"$url_path": "/FE_vue_wap/trend.html",
+//        |		"$carrier": "中国联通",
+//        |		"$latest_referrer": "",
+//        |		"$utm_campaign": "AppStore",
+//        |		"$latest_referrer_host": "",
+//        |		"$device_id": "1533FD43-DDB9-407D-9874-5394639D0E82",
+//        |		"$lib": "js",
+//        |		"$manufacturer": "Apple",
+//        |		"planner_number": "1",
+//        |		"$os": "iOS",
+//        |		"$referrer": "",
+//        |		"$model": "iPhone11,8",
+//        |		"$url": "http://niu.sinalicaishi.com.cn/FE_vue_wap/trend.html#/trend?symbol=sz300750",
+//        |		"platForm": "h5",
+//        |		"$latest_search_keyword": "未取到值_直接打开",
+//        |		"deviceId": "1533FD43-DDB9-407D-9874-5394639D0E82",
+//        |		"$lib_version": "1.14.6",
+//        |		"$screen_width": 375,
+//        |		"$title": "多空趋势",
+//        |		"$screen_height": 812,
+//        |		"$is_first_time": false,
+//        |		"$network_type": "WIFI",
+//        |		"userID": "27250486",
+//        |		"$wifi": true,
+//        |		"$referrer_host": "",
+//        |		"$app_version": "4.3.16",
+//        |		"stock_number": "21",
+//        |		"$latest_traffic_source_type": "直接流量",
+//        |		"PushStatus": true,
+//        |		"$utm_source": "AppStore",
+//        |		"$is_first_day": true,
+//        |		"$ip": "60.222.83.182",
+//        |		"$is_login_id": false,
+//        |		"$city": "运城",
+//        |		"$province": "山西",
+//        |		"$country": "中国"
+//        |	}
+//        |""".stripMargin
+//    val value = jsonParser.parse(jsonStr).asInstanceOf[JSONObject]
+//    value.put("event","BXClick")
+//    println(value.toJSONString())
 
 
 //    val  dateFormat:SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd")
@@ -109,12 +113,18 @@ object Test {
 //    val set = ite.toSet
 //    println(set)
 
+//    val dataMap = jsonParse("{\n\t\"date\": \"2021-01-03\",\n\t\"$os\": \"iOS\",\n\t\"$wifi\": \"0\",\n\t\"$network_type\": \"4G\",\n\t\"userID\": \"27523338\",\n\t\"$province\": \"四川\",\n\t\"$latest_search_keyword\": \"未取到值_直接打开\",\n\t\"v1_element_content\": \"多空趋势详情页访问\",\n\t\"v1_page_url\": \"https:\\/\\/niu.sylstock.com\\/FE_vue_wap\\/trend.html#\\/trend?symbol=sz002459\",\n\t\"v1_paying_user\": \"\",\n\t\"$city\": \"成都\",\n\t\"$model\": \"iPhone7,2\",\n\t\"$screen_width\": \"375\",\n\t\"v1_lcs_id\": \"\",\n\t\"v1_stock_name\": \"晶澳科技\",\n\t\"$app_version\": \"4.12.1\",\n\t\"stock_number\": \"1\",\n\t\"$country\": \"中国\",\n\t\"$utm_campaign\": \"AppStore\",\n\t\"user_id\": \"-342383039955575831\",\n\t\"$lib_version\": \"1.15.10\",\n\t\"$latest_traffic_source_type\": \"直接流量\",\n\t\"v1_message_type\": \"\",\n\t\"v1_lcs_name\": \"\",\n\t\"v1_order\": \"\",\n\t\"$ip\": \"119.4.252.167\",\n\t\"$screen_height\": \"667\",\n\t\"platform\": \"h5\",\n\t\"v1_environment\": \"0\",\n\t\"$device_id\": \"7F08634F-CA65-4A81-918F-27634DC77782\",\n\t\"planner_number\": \"10\",\n\t\"v1_share_channel\": \"\",\n\t\"$app_id\": \"cn.com.sina.licaishi.client\",\n\t\"$latest_referrer\": \"\",\n\t\"$kafka_offset\": \"476394613001\",\n\t\"$carrier\": \"中国联通\",\n\t\"$os_version\": \"12.4.9\",\n\t\"$is_first_day\": \"0\",\n\t\"pushstatus\": \"1\",\n\t\"v1_message_id\": \"\",\n\t\"v1_message_title\": \"\",\n\t\"$utm_source\": \"AppStore\",\n\t\"deviceid\": \"7F08634F-CA65-4A81-918F-27634DC77782\",\n\t\"$lib\": \"js\",\n\t\"v1_symbol\": \"sz002459\",\n\t\"$timezone_offset\": \"-480\",\n\t\"platformtype\": \"iOS\",\n\t\"v1_source\": \"\",\n\t\"$manufacturer\": \"Apple\"\n}")
+//    var tmpMap = dataMap
+//    tmpMap -= ("_track_id","time","type","distinct_id","lib","event","_flush_time","map_id","userid","recv_time","extractor","project_id","project","ver")
+//    tmpMap += ("userID" -> dataMap.getOrElse("userid", ""))
 //    val jsonO = new JSONObject
-//    jsonO.put("name","32")
-//    jsonO.put("age",new Integer(10))
-//    jsonO.put("time", "32")
-//    println(jsonO.toJSONString)
-
+//    for(v <- tmpMap) {
+//      jsonO.put(v._1,v._2)
+//    }
+//    jsonO.put("deviceId",dataMap.getOrElse("deviceid", ""))
+//    jsonO.put("$is_first_time",if (dataMap.getOrElse("$is_first_time", "") == "1") "true" else "false")
+//    jsonO.put("$is_first_day",if (dataMap.getOrElse("$is_first_day", "") == "1") "true" else "false")
+//  println(jsonO.toJSONString)
 
 //    var map = Map[String, String]()
 //    map += ("a"->"1")
@@ -146,6 +156,8 @@ object Test {
 
 
 //    val jedis = RedisClient.pool.getResource
+
+//    println((Long.MaxValue-1582646387941L+"A").getBytes().length)
 
   }
   case class UserBean(name : String , age : Int , Time : Long)

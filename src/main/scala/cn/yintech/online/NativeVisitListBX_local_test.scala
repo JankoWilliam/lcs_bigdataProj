@@ -19,13 +19,13 @@ import scala.language.postfixOps
  * 理财师保险业务埋点日志访问记录、统计引流到线上系统（线上和测试环境）
  *
  */
-object NativeVisitListBX {
+object NativeVisitListBX_local_test {
 
     def main(args: Array[String]): Unit = {
       // 1.创建SparkConf对象
       val conf: SparkConf = new SparkConf()
         .setAppName("NativeVisitListBX")
-//        .setMaster("local[*]")
+        .setMaster("local[*]")
         //单位：毫秒，设置从Kafka拉取数据的超时时间，超时则抛出异常重新启动一个task
         .set("spark.streaming.kafka.consumer.poll.ms", "20000")
         //控制每秒读取Kafka每个Partition最大消息数(2000*3*5=30000)，若Streaming批次为5秒，topic最大分区为3，则每批次最大接收消息数为30000
@@ -41,18 +41,17 @@ object NativeVisitListBX {
       // 2.创建SparkContext对象
       val sc: SparkContext = new SparkContext(conf)
       sc.setLogLevel("ERROR")
-//      sc.setLogLevel("info")
       // 3.创建StreamingContext对象
       val ssc: StreamingContext = new StreamingContext(sc, Seconds(15))
       //设置checkpoint目录
-      ssc.checkpoint("hdfs:///user/licaishi/NativeVisitListBX_checkpoint")
-//      ssc.checkpoint("./mycheck5")
+//      ssc.checkpoint("hdfs:///user/licaishi/NativeVisitListBX_checkpoint")
+      ssc.checkpoint("./mycheck5")
 
       // 4.通过KafkaUtils.createDirectStream对接kafka(采用是kafka低级api偏移量不受zk管理)
       // 4.1.配置kafka相关参数
       val kafkaParams = Map(
-        "bootstrap.servers" -> "192.168.195.211:9092,192.168.195.213:9092,192.168.195.214:9092",
-//        "bootstrap.servers" -> "bigdata002.sj.com:9092,bigdata003.sj.com:9092,bigdata004.sj.com:9092",
+//        "bootstrap.servers" -> "192.168.195.211:9092,192.168.195.213:9092,192.168.195.214:9092",
+        "bootstrap.servers" -> "bigdata002.sj.com:9092,bigdata003.sj.com:9092,bigdata004.sj.com:9092",
         "group.id" -> "NativeVisitListBX_1", // 线上消费者组id：NativeVisitList_1
         "key.deserializer" -> classOf[StringDeserializer],
         "value.deserializer" -> classOf[StringDeserializer],
@@ -111,24 +110,22 @@ object NativeVisitListBX {
        * })
        * },
        **/
-      // 保险事件总数据
+      // 保险BXVisit和BXClick事件总数据
       val bxDataAll = dstream
         .map(record => {
           val dataMap = jsonParse(record.value())
           (dataMap.getOrElse("event", ""),dataMap.getOrElse("properties", ""),dataMap.getOrElse("time", ""),dataMap.getOrElse("project", ""))
         })
-//        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx")
-        .filter(v => v._4 == "lcs_qijianbx")
+        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx")
         .persist(StorageLevel.MEMORY_AND_DISK)
 
-      // 保险测试环境事件总数据
+      // 保险测试环境数据BXVisit和BXClick事件总数据
       val bxDataTestAll = dstream
         .map(record => {
           val dataMap = jsonParse(record.value())
           (dataMap.getOrElse("event", ""),dataMap.getOrElse("properties", ""),dataMap.getOrElse("time", ""),dataMap.getOrElse("project", ""))
         })
-//        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx_test")
-        .filter(v =>  v._4 == "lcs_qijianbx_test")
+        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx_test")
 //        .persist(StorageLevel.MEMORY_AND_DISK)
 
 
@@ -425,6 +422,14 @@ object NativeVisitListBX {
               val jsonParser = new JSONParser()
               val value = jsonParser.parse(v._2).asInstanceOf[JSONObject]
               value.put("event",v._1)
+              val v1_element_content = value.getOrDefault("v1_element_content","")
+              if (v1_element_content == "小程序_直播页面访问") {
+                println("is_event :" +  v1_element_content)
+              }
+              else {
+                println("not_event :" +  v1_element_content)
+              }
+              println("all_event :" +  value.toJSONString())
               // 当测试环境使用
               jedis.rpush("td:bx:behevior:list:new:test",value.toJSONString())
             })

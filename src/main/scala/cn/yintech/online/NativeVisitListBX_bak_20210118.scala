@@ -19,7 +19,7 @@ import scala.language.postfixOps
  * 理财师保险业务埋点日志访问记录、统计引流到线上系统（线上和测试环境）
  *
  */
-object NativeVisitListBX {
+object NativeVisitListBX_bak_20210118 {
 
     def main(args: Array[String]): Unit = {
       // 1.创建SparkConf对象
@@ -41,7 +41,6 @@ object NativeVisitListBX {
       // 2.创建SparkContext对象
       val sc: SparkContext = new SparkContext(conf)
       sc.setLogLevel("ERROR")
-//      sc.setLogLevel("info")
       // 3.创建StreamingContext对象
       val ssc: StreamingContext = new StreamingContext(sc, Seconds(15))
       //设置checkpoint目录
@@ -111,24 +110,22 @@ object NativeVisitListBX {
        * })
        * },
        **/
-      // 保险事件总数据
+      // 保险BXVisit和BXClick事件总数据
       val bxDataAll = dstream
         .map(record => {
           val dataMap = jsonParse(record.value())
           (dataMap.getOrElse("event", ""),dataMap.getOrElse("properties", ""),dataMap.getOrElse("time", ""),dataMap.getOrElse("project", ""))
         })
-//        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx")
-        .filter(v => v._4 == "lcs_qijianbx")
+        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx")
         .persist(StorageLevel.MEMORY_AND_DISK)
 
-      // 保险测试环境事件总数据
+      // 保险测试环境数据BXVisit和BXClick事件总数据
       val bxDataTestAll = dstream
         .map(record => {
           val dataMap = jsonParse(record.value())
           (dataMap.getOrElse("event", ""),dataMap.getOrElse("properties", ""),dataMap.getOrElse("time", ""),dataMap.getOrElse("project", ""))
         })
-//        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx_test")
-        .filter(v =>  v._4 == "lcs_qijianbx_test")
+        .filter(v => (v._1 == "BXVisit" || v._1 == "BXClick") && v._4 == "lcs_qijianbx_test")
 //        .persist(StorageLevel.MEMORY_AND_DISK)
 
 

@@ -9,6 +9,7 @@ import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.Job
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 import scala.util.Random
@@ -16,7 +17,7 @@ import scala.util.matching.Regex
 
 object EventLogToHbase {
   /**
-   * @param args:T4日（需要跟新数据的日期）'yyyy-mm-dd'格式日期参数，增量更新T4日数据
+   * @param args :T4日（需要跟新数据的日期）'yyyy-mm-dd'格式日期参数，增量更新T4日数据
    */
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder()
@@ -46,32 +47,38 @@ object EventLogToHbase {
 
 
     // 在存入hbase之前先清空hbase表
-//    val connection = ConnectionFactory.createConnection(hconf)
-//    val admin=connection.getAdmin
-//    val table = TableName.valueOf("base_event_log_test")
-//    if(admin.tableExists(table)){
-//      admin.disableTableAsync(table)
-//      admin.truncateTable(table,false)
-//    }
-//    admin.enableTableAsync(table)
+    //    val connection = ConnectionFactory.createConnection(hconf)
+    //    val admin=connection.getAdmin
+    //    val table = TableName.valueOf("base_event_log_test")
+    //    if(admin.tableExists(table)){
+    //      admin.disableTableAsync(table)
+    //      admin.truncateTable(table,false)
+    //    }
+    //    admin.enableTableAsync(table)
 
     import spark.implicits._
-    val value = spark.sql(s"select * from dwd.dwd_base_event_1d WHERE dt = '$dt' ")
-      .select("time","event","properties")
+    val value = spark.sql(s"select * from dwd.dwd_base_event_1d WHERE dt = '$dt' and event is not null and event != '' and event != 'NativeAppQuotLog' ")
+      .select("time", "event", "properties")
       .rdd
       .map(row => {
-//        val sdf =  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-//        val time = row(0).toString.toLong
+        //        val sdf =  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
         val dataMap = jsonParse(row.getString(2))
-        var userId = dataMap.getOrElse("ls ", "null")
-        if (userId == "null" || userId == "")
-          userId = dataMap.getOrElse("deviceId", "null")
-//        val rowKey = (Random.nextInt(90) + 10) + "-" + userId + "-" + sdf.parse(sdf.format(time)).getTime
-        val rowKey = (Random.nextInt(6) + 'A').toChar + "-" + userId + "-" + (if (null != row(0)) row(0).toString else "")
+        val userId = dataMap.getOrElse("userID", "")
+        val deviceId = dataMap.getOrElse("deviceId", "")
 
+        (row(0).toString, row(1).toString,row(2).toString, userId,deviceId)
+      })
+//      .filter(_._4 != "null")
+      .map(v => {
+        val timestamp = v._1.toLong
+        //        val rowKey = (Random.nextInt(90) + 10) + "-" + userId + "-" + sdf.parse(sdf.format(time)).getTime
+        val rowKey = (Random.nextInt(6) + 'A').toChar + "|" + v._4 + "|" + (Long.MaxValue-timestamp)
         val put = new Put(Bytes.toBytes(rowKey))
-        put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("event"), Bytes.toBytes(if (null != row(1)) row(1).toString else ""))
-        put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("properties"), Bytes.toBytes(if (null != row(2)) row(2).toString else ""))
+        put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("time"), Bytes.toBytes(if (null != v._1) v._1 else ""))
+        put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("event"), Bytes.toBytes(if (null != v._2) v._2 else ""))
+        put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("properties"), Bytes.toBytes(if (null != v._3) v._3 else ""))
+        put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("userid"), Bytes.toBytes(if (null != v._4) v._4 else ""))
+        put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("deviceid"), Bytes.toBytes(if (null != v._5) v._5 else ""))
         (new ImmutableBytesWritable, put)
       })
 
@@ -85,7 +92,7 @@ object EventLogToHbase {
   def jsonParse(value: String): Map[String, String] = {
     var map = Map[String, String]()
     val jsonParser = new JSONParser()
-    try{
+    try {
       val outJsonObj: JSONObject = jsonParser.parse(value).asInstanceOf[JSONObject]
       val outJsonKey = outJsonObj.keySet()
       val outIter = outJsonKey.iterator
@@ -96,7 +103,7 @@ object EventLogToHbase {
         map += (outKey -> outValue)
       }
     } catch {
-      case ex : Exception => {
+      case ex: Exception => {
         ex.printStackTrace()
       }
     }

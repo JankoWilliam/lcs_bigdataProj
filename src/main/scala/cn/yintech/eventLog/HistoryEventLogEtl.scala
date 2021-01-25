@@ -1,5 +1,7 @@
 package cn.yintech.eventLog
 
+import java.text.SimpleDateFormat
+
 import net.minidev.json.JSONObject
 import net.minidev.json.parser.JSONParser
 import org.apache.spark.sql.{SaveMode, SparkSession}
@@ -39,9 +41,15 @@ object HistoryEventLogEtl {
         for(v <- tmpMap) {
           jsonO.put(v._1,v._2)
         }
+        jsonO.appendField("deviceId",dataMap.getOrElse("deviceid", ""))
+        jsonO.appendField("$is_first_time",if (dataMap.getOrElse("$is_first_time", "") == "1") "true" else "false")
+        jsonO.appendField("$is_first_day",if (dataMap.getOrElse("$is_first_day", "") == "1") "true" else "false")
+        val sdf =  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+        val timestamp = sdf.parse(dataMap.getOrElse("time", "1970-01-01 08:00:00.000")).getTime
+
         val eventLog = EventLogBean(
           dataMap.getOrElse("_track_id", ""),
-          dataMap.getOrElse("time", ""),
+          timestamp.toString,
           dataMap.getOrElse("type", ""),
           dataMap.getOrElse("distinct_id", ""),
           dataMap.getOrElse("lib", ""),
@@ -53,7 +61,7 @@ object HistoryEventLogEtl {
           dataMap.getOrElse("recv_time", ""),
           dataMap.getOrElse("extractor", ""),
           dataMap.getOrElse("project_id", ""),
-          dataMap.getOrElse("project ", ""),
+          dataMap.getOrElse("project ", "licaishi"),
           dataMap.getOrElse("ver", "")
         )
         eventLog
