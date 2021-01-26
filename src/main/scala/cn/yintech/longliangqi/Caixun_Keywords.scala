@@ -51,8 +51,8 @@ object Caixun_Keywords {
     //    val lineDataSet_7day = spark.read.format("jdbc").
     //      option("url", "jdbc:mysql://j8h7qwxzyuzs6bby07ek-rw4rm.rwlb.rds.aliyuncs.com/licaishi?useUnicode=true&characterEncoding=UTF-8&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false").
     //      option("driver", "com.mysql.jdbc.Driver").
-    //      option("user", "licaishi_w").
-    //      option("password", "a222541420a50a5").
+    //      option("user", "syl_w").
+    //      option("password", "naAm7kmYgaG7SrkO1mAT").
     //      option("dbtable", "(select id,ind_id,title,freeContent,payContent,summary from lcs_new_caixun_spider where showTime > '2020-08-18')t").
     //      load().cache()
 
@@ -80,8 +80,8 @@ object Caixun_Keywords {
       val lineDataSet = spark.read.format("jdbc").
         option("url", "jdbc:mysql://j8h7qwxzyuzs6bby07ek-rw4rm.rwlb.rds.aliyuncs.com/licaishi?useUnicode=true&characterEncoding=UTF-8&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false").
         option("driver", "com.mysql.jdbc.Driver").
-        option("user", "licaishi_w").
-        option("password", "a222541420a50a5").
+        option("user", "syl_w").
+        option("password", "naAm7kmYgaG7SrkO1mAT").
         option("dbtable", s"(select id,ind_id,title,freeContent,payContent,summary from lcs_new_caixun_spider where showTime between '$dt' and '$dt_add1')t").
         load().cache()
 
