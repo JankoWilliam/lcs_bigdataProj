@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.util.*;
 
 public class HbaseUtils {
-    private final static Logger log = LoggerFactory.getLogger(HbaseUtils.class);
+    private final static Logger log = LoggerFactory.getLogger(HbaseUtilsScala.class);
     public static Configuration conf = null;
     static {
         conf = HBaseConfiguration.create();

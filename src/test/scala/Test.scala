@@ -28,11 +28,11 @@ object Test {
 //    val tool: ParameterTool = ParameterTool.fromPropertiesFile( Thread.currentThread().getContextClassLoader.getResource("kafka.properties").getPath)
 //    println(tool.get("group.id"))
 
-    val sdf =  new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+    val sdf =  new SimpleDateFormat("yyyy-MM-dd")
 
-//    println(sdf.format(new Date(1605680275280L)))
+    println(sdf.format(new Date()))
 ////
-    println(sdf.parse("2021-01-01 20:54:08.723").getTime)
+//    println(sdf.parse("2021-01-01 20:54:08.723").getTime)
 //    println(new SimpleDateFormat("yyyy-MM-dd").format(0))
 //    sdf2.parse("2020-03-1")
 //        val sdf2 =  new SimpleDateFormat("yyyy-MM-dd")
