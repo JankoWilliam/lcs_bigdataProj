@@ -3,19 +3,20 @@ package cn.yintech.online
 import java.sql.{DriverManager, ResultSet, Statement}
 import java.text.SimpleDateFormat
 
-import cn.yintech.hbase.HbaseUtilsScala
-import cn.yintech.hbase.HbaseUtilsScala.scaneByPrefixFilter
 import cn.yintech.redisUtil.RedisClient
+import cn.yintech.hbase.HbaseUtilsScala
+import cn.yintech.hbase.HbaseUtilsScala.{getHbaseConf, scaneByPrefixFilter}
 import cn.yintech.utils.ScalaUtils.getBetweenHalfMinute
 import net.minidev.json.JSONObject
 import net.minidev.json.parser.JSONParser
 import org.apache.hadoop.hbase.TableName
+import org.apache.hadoop.hbase.client.ConnectionFactory
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
-import org.apache.spark.streaming.kafka010.KafkaUtils
+import org.apache.spark.streaming.kafka010.{CanCommitOffsets, KafkaUtils}
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -27,7 +28,7 @@ import scala.language.postfixOps
  * 理财师埋点日志访问记录、统计引流到线上系统
  * v20200402:理财师_TD公众号&理财师埋点日志访问记录、统计引流到线上系统,任务合并
  */
-object NativeVisitList {
+object NativeVisitList_bak_20210411_1 {
 
   def main(args: Array[String]): Unit = {
     // 1.创建SparkConf对象
@@ -636,6 +637,7 @@ object NativeVisitList {
      * **************************************************************************
      */
     val caishangCourseViewRecord = lcsEvent
+      // 线上环境数据
       .filter(v => (v._1 == "CSH5Visit"))
       .map(v => {
         val properties = jsonParse(v._2)
@@ -666,13 +668,13 @@ object NativeVisitList {
               val timestamp = v._6.toLong / 1000 / 30 * 1000 * 30
               if (v._7 == "licaishi") {
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|prod|live|" + timestamp, "cf1", "record", "1")
-              } else if (v._7 == "lcs_test") {
+              }else if(v._7 == "lcs_test"){
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|test|live|" + timestamp, "cf1", "record", "1")
               }
             } else if (v._1 == "财商_课程_回看") {
               if (v._7 == "licaishi") {
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|prod|play|" + v._4, "cf1", "record", "1")
-              } else if (v._7 == "lcs_test") {
+              }else if(v._7 == "lcs_test"){
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|test|play|" + v._4, "cf1", "record", "1")
               }
             }
@@ -681,9 +683,8 @@ object NativeVisitList {
         }
       })
     })
-    // 测试&线上环境数据一起处理
-    // 取uid、课程章节id、埋点环境，
-    caishangCourseViewRecord.map(v => ((v._5, v._3, v._7), 1)).reduceByKeyAndWindow((v1, v2) => v1, Seconds(30))
+    // 取uid、课程章节id、埋点环境
+    caishangCourseViewRecord.map(v => ((v._5, v._3 ,v._7), 1)).reduceByKeyAndWindow((v1, v2) => v1, Seconds(30))
       .foreachRDD(lines => {
         lines.foreachPartition(rdd => {
           val list = rdd.toList
@@ -707,7 +708,7 @@ object NativeVisitList {
                 var startTime = "0000-00-00 00:00:00"
                 var endTime = "0000-00-00 00:00:00"
                 var env = ""
-                if (v._1._3 == "licaishi") { //线上数据
+                if (v._1._3 == "licaishi"){ //线上数据
                   stmtOn = stmt
                   env = "prod"
                 } else if (v._1._3 == "lcs_test") { //测试数据
@@ -734,7 +735,7 @@ object NativeVisitList {
                 val hbaseRecords = scaneByPrefixFilter(htable, uid.reverse + "|" + courseItemId + "|" + env)
                 val tuples = hbaseRecords.map(v => {
                   val splits = v.split("\\|")
-                  (splits(3), splits(4))
+                  (splits(3),splits(4))
                 })
                 val halfMinutes = getBetweenHalfMinute(startTime, endTime)
                 val live = tuples.filter(_._1.equals("live")).map(v => halfMinutes.indexOf(v._2)).filter(_ != -1)
@@ -745,12 +746,12 @@ object NativeVisitList {
                 val intersect = halfMinutesPoint.toSet.intersect(proceding) // 交集，以观看
                 val diff = halfMinutesPoint.toSet.diff(proceding) // 差集，未观看
 
-                val percent = intersect.size * 1.0 / halfMinutesPoint.size
-                val times = intersect.size * 30
+                val percent = intersect.size*1.0/halfMinutesPoint.size
+                val times = intersect.size*30
 
                 val jsonObj = new JSONObject
-                jsonObj.put("percent", percent + "")
-                jsonObj.put("times", times + "")
+                jsonObj.put("percent", percent+"")
+                jsonObj.put("times", times+"")
                 val jsonObjStr = jsonObj.toJSONString()
 
                 val sql2 =
@@ -772,7 +773,7 @@ object NativeVisitList {
               stmtTest.close()
               connection.close()
               connectionTest.close()
-              conn.close() //hbase 关闭连接
+              conn.close()  //hbase 关闭连接
             }
           }
 
@@ -782,165 +783,6 @@ object NativeVisitList {
     /**
      * **************************************************************************
      * 财商课程章节用户观看进度统计--------------------------------------------End--
-     * **************************************************************************
-     */
-
-    /**
-     * **************************************************************************
-     * 财商作业答题用户行为--------------------------------------------------Start--
-     * **************************************************************************
-     */
-    // 定义v1_element_content内容
-    val contentsCSAnswerQuestionClick = List(
-      "财商_题目解答页_选项点击",
-      "财商_题目解答页_提交点击",
-      "财商_题目解答页_回看课程点击",
-      "财商_评分结果页_错题解析",
-      "财商_评分结果页_全部解析",
-      "财商_评分结果页_学习其他课程",
-      "财商_评分结果页_我要打卡",
-      "财商_评分结果页_重新答题"
-    )
-    val contentsCSAnswerQuestionClickBro: Broadcast[List[String]] = ssc.sparkContext.broadcast(contentsCSAnswerQuestionClick)
-
-    val contentsCSAnswerQuestionVisit = List(
-      "财商_题目解答页访问",
-      "财商_评分结果页访问",
-      "财商_图片打卡页访问"
-    )
-    val contentsCSAnswerQuestionVisitBro: Broadcast[List[String]] = ssc.sparkContext.broadcast(contentsCSAnswerQuestionVisit)
-
-
-    val caishangAnswerQuestion = lcsEvent
-      .filter(v => (v._1 == "CSH5Visit" || v._1 == "CSH5Click"))
-      .map(v => {
-        val properties = jsonParse(v._2)
-        ( v._3, // 时间戳
-          v._4, // project，区分测试和线上环境
-          properties.getOrElse("v1_element_content", ""),
-          properties.getOrElse("v1_message_title", ""),
-          properties.getOrElse("v1_message_id", ""),
-          properties.getOrElse("v1_page_title", ""),
-          properties.getOrElse("v1_uid", ""),
-          properties.getOrElse("v1_remark", ""),
-          properties.getOrElse("v1_action", ""),
-          properties.getOrElse("v1_custom_params", "")
-
-        )
-      })
-      .filter(v => contentsCSAnswerQuestionClickBro.value.contains(v._3) || contentsCSAnswerQuestionVisitBro.value.contains(v._3))
-      .persist(StorageLevel.MEMORY_AND_DISK)
-
-    // 测试&线上环境数据一起处理
-    caishangAnswerQuestion
-      .foreachRDD(lines => {
-        lines.foreachPartition(rdd => {
-          val list = rdd.toList
-          if (list.nonEmpty) {
-            // 初始化mysql连接
-            Class.forName("com.mysql.jdbc.Driver").newInstance()
-            val connection = DriverManager.getConnection("jdbc:mysql://j8h7qwxzyuzs6bby07ek-rw4rm.rwlb.rds.aliyuncs.com/licaishi?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC", "syl_w", "naAm7kmYgaG7SrkO1mAT")
-            val connectionTest = DriverManager.getConnection("jdbc:mysql://rm-2ze65101j46337ry1.mysql.rds.aliyuncs.com/licaishi?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC", "licaishi_w", "tUG78nfG6XottQGboRpR")
-            val stmt = connection.createStatement
-            val stmtTest = connectionTest.createStatement
-            try {
-              list.distinct.foreach(v => {
-                var stmtOn: Statement = null
-                if (v._2 == "licaishi") { //线上数据
-                  stmtOn = stmt
-                } else if (v._2 == "lcs_test") { //测试数据
-                  stmtOn = stmtTest
-                }
-
-                val messageTitle = v._4
-                val messageId = v._5
-                val pageTitle = v._6
-                val uid = v._7
-                val remark = v._8
-                val action = v._9
-                var typeStr = ""
-
-                if (contentsCSAnswerQuestionClickBro.value.contains(v._3)) {
-                  typeStr = "click"
-                } else if (contentsCSAnswerQuestionVisitBro.value.contains(v._3)) {
-                  typeStr = "enter"
-                  val sql2 =
-                    s"""
-                       |SELECT ext_info FROM lcs_wealth_ques_user WHERE ques_id = $messageId and uid = $uid
-                       |""".stripMargin
-                  val rs: ResultSet = stmtOn.executeQuery(sql2)
-                  var ext_info = "{}"
-                  while (rs.next()) {
-                    ext_info = rs.getString("ext_info")
-                  }
-                  if (ext_info == "") ext_info = "{}"
-                  rs.close()
-
-                  val jsonParser = new JSONParser()
-                  val value = jsonParser.parse(ext_info).asInstanceOf[JSONObject]
-                  if(v._3 == "财商_题目解答页访问") {
-                    value.put("enter_answer_page", Integer.valueOf(1))
-                  }
-                  if(v._3 == "财商_评分结果页访问") {
-                    value.put("enter_score_page", Integer.valueOf(1))
-                  }
-                  if(v._3 == "财商_图片打卡页访问") {
-                    value.put("enter_course_sign_page", Integer.valueOf(1))
-                  }
-
-                  val sql3 =
-                    s"""
-                       |UPDATE lcs_wealth_ques_user
-                       |SET ext_info = '${value.toJSONString()}'
-                       |WHERE
-                       |	ques_id = $messageId AND uid = $uid
-                       |""".stripMargin
-
-                  val sql4 =
-                    s"""
-                       | INSERT INTO lcs_wealth_ques_user (ques_id , uid ,ext_info ,ques_relation_type )
-                       | SELECT $messageId,$uid,'${value.toJSONString()}',1
-                       |FROM
-                       |	DUAL
-                       |WHERE
-                       |	NOT EXISTS (
-                       |		SELECT
-                       |			ques_id
-                       |		FROM
-                       |			lcs_wealth_ques_user
-                       |		WHERE
-                       |			ques_id = $messageId AND uid = $uid
-                       |	);
-                       |""".stripMargin
-
-                  stmtOn.execute(sql3)
-                  stmtOn.execute(sql4)
-                }
-
-                val sql1 =
-                  s"""
-                     |INSERT INTO wealth_business_user_history ( uid , category , relation_id , type , remark ,page_title ,message_title ,action)
-                     | VALUES
-                     |  ( $uid, 'answer_question', $messageId , '$typeStr' , '$remark' , '$pageTitle' , '$messageTitle' , '$action');
-                     |""".stripMargin
-                stmtOn.execute(sql1)
-
-
-              })
-            } catch {
-              case e: Exception => e.printStackTrace()
-            } finally {
-              stmt.close()
-              stmtTest.close()
-              connection.close()
-              connectionTest.close()
-            }
-          }
-        })
-      })
-    /**
-     * **************************************************************************
-     * 财商作业答题用户行为----------------------------------------------------End--
      * **************************************************************************
      */
 

@@ -8,7 +8,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
-import org.apache.spark.streaming.kafka010.KafkaUtils
+import org.apache.spark.streaming.kafka010.{HasOffsetRanges, KafkaUtils, OffsetRange}
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -57,7 +57,7 @@ object NativeVisitListBX {
         "key.deserializer" -> classOf[StringDeserializer],
         "value.deserializer" -> classOf[StringDeserializer],
         "auto.offset.reset" -> "latest",
-        "enable.auto.commit" -> (false: java.lang.Boolean)
+        "enable.auto.commit" -> (true: java.lang.Boolean)
       )
       // 4.2.定义topic
       val topics = "sc_md_bx" // 线上数据
@@ -431,6 +431,7 @@ object NativeVisitListBX {
             jedis.close()
           }
         })
+        val offsetRanges: Array[OffsetRange] = lines.asInstanceOf[HasOffsetRanges].offsetRanges
       })
 
       /**

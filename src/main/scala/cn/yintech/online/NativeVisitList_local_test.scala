@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 
 import cn.yintech.hbase.HbaseUtilsScala
 import cn.yintech.hbase.HbaseUtilsScala.scaneByPrefixFilter
-import cn.yintech.online.NativeVisitList.jsonParse
+import cn.yintech.online.NativeVisitList_bak_20210411_1.jsonParse
 import cn.yintech.redisUtil.RedisClient
 import cn.yintech.utils.ScalaUtils.getBetweenHalfMinute
 import net.minidev.json.JSONObject
@@ -16,7 +16,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
-import org.apache.spark.streaming.kafka010.KafkaUtils
+import org.apache.spark.streaming.kafka010.{HasOffsetRanges, KafkaUtils}
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -65,7 +65,7 @@ object NativeVisitList_local_test {
         "key.deserializer" -> classOf[StringDeserializer],
         "value.deserializer" -> classOf[StringDeserializer],
         "auto.offset.reset" -> "latest",
-        "enable.auto.commit" -> (false: java.lang.Boolean)
+        "enable.auto.commit" -> (true: java.lang.Boolean)
       )
       // 4.2.定义topic
       val topics = "sc_md" // 线上数据
