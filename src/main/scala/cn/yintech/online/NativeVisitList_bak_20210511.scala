@@ -27,7 +27,7 @@ import scala.language.postfixOps
  * 理财师埋点日志访问记录、统计引流到线上系统
  * v20200402:理财师_TD公众号&理财师埋点日志访问记录、统计引流到线上系统,任务合并
  */
-object NativeVisitList {
+object NativeVisitList_bak_20210511 {
 
   def main(args: Array[String]): Unit = {
     // 1.创建SparkConf对象
@@ -63,42 +63,29 @@ object NativeVisitList {
       "group.id" -> "NativeVisitList_1", // 线上消费者组id：NativeVisitList_1
       "key.deserializer" -> classOf[StringDeserializer],
       "value.deserializer" -> classOf[StringDeserializer],
-//      "auto.offset.reset" -> "latest",
+      "auto.offset.reset" -> "latest",
       "enable.auto.commit" -> (true: java.lang.Boolean)
     )
     // 4.2.定义topic
     val topics = "sc_md" // 线上数据
     val topics_test = "sc_md_lcs_test" // 测试环境
-    val topics_caishang = "sc_md_lcs_caishang" // 财商项目线上数据
 
     // kafka流
     val dstream =
     // 指定起始消费者偏移消费数据，主方法传参3个分区的三个数字，依次为0,1,2分区
-      if (args != null && args.length == 9) {
-        val partition00: TopicPartition = new TopicPartition(topics, 0)
-        val partition01: TopicPartition = new TopicPartition(topics, 1)
-        val partition02: TopicPartition = new TopicPartition(topics, 2)
-        val partition10: TopicPartition = new TopicPartition(topics_test, 0)
-        val partition11: TopicPartition = new TopicPartition(topics_test, 1)
-        val partition12: TopicPartition = new TopicPartition(topics_test, 2)
-        val partition20: TopicPartition = new TopicPartition(topics_caishang, 0)
-        val partition21: TopicPartition = new TopicPartition(topics_caishang, 1)
-        val partition22: TopicPartition = new TopicPartition(topics_caishang, 2)
+      if (args != null && args.length == 3) {
+        val partition0: TopicPartition = new TopicPartition(topics, 0)
+        val partition1: TopicPartition = new TopicPartition(topics, 1)
+        val partition2: TopicPartition = new TopicPartition(topics, 2)
         var fromOffsets = Map[TopicPartition, Long]()
-        fromOffsets += (partition00 -> args(0).toLong)
-        fromOffsets += (partition01 -> args(1).toLong)
-        fromOffsets += (partition02 -> args(2).toLong)
-        fromOffsets += (partition10 -> args(3).toLong)
-        fromOffsets += (partition11 -> args(4).toLong)
-        fromOffsets += (partition12 -> args(5).toLong)
-        fromOffsets += (partition20 -> args(6).toLong)
-        fromOffsets += (partition21 -> args(7).toLong)
-        fromOffsets += (partition22 -> args(8).toLong)
+        fromOffsets += (partition0 -> args(0).toLong)
+        fromOffsets += (partition1 -> args(1).toLong)
+        fromOffsets += (partition2 -> args(2).toLong)
 
         KafkaUtils.createDirectStream[String, String](
           ssc,
           PreferConsistent,
-          Subscribe[String, String](Set(topics, topics_test, topics_caishang), kafkaParams, fromOffsets))
+          Subscribe[String, String](Set(topics), kafkaParams, fromOffsets))
 
         // 默认消费者偏移消费数据
       } else {
@@ -106,7 +93,7 @@ object NativeVisitList {
         KafkaUtils.createDirectStream[String, String](
           ssc,
           PreferConsistent,
-          Subscribe[String, String](Set(topics, topics_test, topics_caishang), kafkaParams))
+          Subscribe[String, String](Set(topics, topics_test), kafkaParams))
       }
     //        .persist(StorageLevel.MEMORY_AND_DISK)
     /**
@@ -585,7 +572,7 @@ object NativeVisitList {
 
     lcsEvent
       // 测试环境数据
-      .filter(v => (v._1 == "CSH5Visit" || v._1 == "CSH5Click") && v._4 == "lcs_caishang_test") // 暂无财商项目测试环境数据，如有请修改项目名
+      .filter(v => (v._1 == "CSH5Visit" || v._1 == "CSH5Click") && v._4 == "lcs_test")
       .foreachRDD(lines => {
         //存储到redis
         lines.foreachPartition(rdd => {
@@ -612,7 +599,7 @@ object NativeVisitList {
 
     lcsEvent
       // 线上环境数据
-      .filter(v => (v._1 == "CSH5Visit" || v._1 == "CSH5Click") && v._4 == "lcs_caishang")
+      .filter(v => (v._1 == "CSH5Visit" || v._1 == "CSH5Click") && v._4 == "licaishi")
       .foreachRDD(lines => {
         //存储到redis
         lines.foreachPartition(rdd => {
@@ -677,15 +664,15 @@ object NativeVisitList {
           list.foreach(v => {
             if (v._1 == "财商_课程_直播") {
               val timestamp = v._6.toLong / 1000 / 30 * 1000 * 30
-              if (v._7 == "lcs_caishang") {
+              if (v._7 == "licaishi") {
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|prod|live|" + timestamp, "cf1", "record", "1")
-              } else if (v._7 == "lcs_caishang_test") { // 暂无财商项目测试环境数据，如有请修改项目名
+              } else if (v._7 == "lcs_test") {
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|test|live|" + timestamp, "cf1", "record", "1")
               }
             } else if (v._1 == "财商_课程_回看") {
-              if (v._7 == "lcs_caishang") {
+              if (v._7 == "licaishi") {
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|prod|play|" + v._4, "cf1", "record", "1")
-              } else if (v._7 == "lcs_caishang_test") { // 暂无财商项目测试环境数据，如有请修改项目名
+              } else if (v._7 == "lcs_test") {
                 HbaseUtilsScala.setRow(htable, v._5.reverse + "|" + v._3 + "|test|play|" + v._4, "cf1", "record", "1")
               }
             }
@@ -720,10 +707,10 @@ object NativeVisitList {
                 var startTime = "0000-00-00 00:00:00"
                 var endTime = "0000-00-00 00:00:00"
                 var env = ""
-                if (v._1._3 == "lcs_caishang") { //线上数据
+                if (v._1._3 == "licaishi") { //线上数据
                   stmtOn = stmt
                   env = "prod"
-                } else if (v._1._3 == "lcs_caishang_test") { //测试数据 // 暂无财商项目测试环境数据，如有请修改项目名
+                } else if (v._1._3 == "lcs_test") { //测试数据
                   stmtOn = stmtTest
                   env = "test"
                 }
@@ -859,9 +846,9 @@ object NativeVisitList {
             try {
               list.distinct.foreach(v => {
                 var stmtOn: Statement = null
-                if (v._2 == "lcs_caishang") { //线上数据
+                if (v._2 == "licaishi") { //线上数据
                   stmtOn = stmt
-                } else if (v._2 == "lcs_caishang_test") { //测试数据 // 暂无财商项目测试环境数据，如有请修改项目名
+                } else if (v._2 == "lcs_test") { //测试数据
                   stmtOn = stmtTest
                 }
 
@@ -891,13 +878,13 @@ object NativeVisitList {
 
                   val jsonParser = new JSONParser()
                   val value = jsonParser.parse(ext_info).asInstanceOf[JSONObject]
-                  if (v._3 == "财商_题目解答页访问") {
+                  if(v._3 == "财商_题目解答页访问") {
                     value.put("enter_answer_page", Integer.valueOf(1))
                   }
-                  if (v._3 == "财商_评分结果页访问") {
+                  if(v._3 == "财商_评分结果页访问") {
                     value.put("enter_score_page", Integer.valueOf(1))
                   }
-                  if (v._3 == "财商_图片打卡页访问") {
+                  if(v._3 == "财商_图片打卡页访问") {
                     value.put("enter_course_sign_page", Integer.valueOf(1))
                   }
 
@@ -951,7 +938,6 @@ object NativeVisitList {
           }
         })
       })
-
     /**
      * **************************************************************************
      * 财商作业答题用户行为----------------------------------------------------End--
